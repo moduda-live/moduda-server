@@ -11,7 +11,8 @@ const REDIS_PORT = 6379;
 
 declare module "ws" {
   export class WebSocket extends ws {
-    id: string;
+    userId: string;
+    partyId: string;
   }
 }
 
@@ -20,13 +21,52 @@ const app = express();
 const server = http.createServer(app);
 const wss = new ws.Server({ server });
 
+// holds partyId -> User map
+const clients = new Map<string, Map<string, ws.WebSocket>>();
+
 // redis
-const cli = redis.createClient(REDIS_PORT, REDIS_HOST);
-const sub = cli.duplicate();
-const pub = cli.duplicate();
+const sub = redis.createClient(REDIS_PORT, REDIS_HOST);
+const pub = sub.duplicate();
 
 sub.on("message", (channel, message) => {
-  console.log(`Received message from ${channel}:  ${message}`);
+  let msg;
+  try {
+    msg = JSON.parse(message);
+  } catch (error) {
+    console.log("Invalid format for message");
+    return;
+  }
+
+  if (!msg.command || !msg.data) {
+    console.log("Invalid format for message");
+    return;
+  }
+
+  // Properly formatted now
+  switch (msg.command) {
+    case "redirectSignal": {
+      const { senderId, username, recipientId, signal, returnSignal } = msg.data;
+      if (clients.has(channel) && clients.get(channel)?.has(recipientId)) {
+        const client = (clients.get(channel) as Map<string, ws.WebSocket>).get(
+          recipientId
+        ) as ws.WebSocket;
+        client.send(
+          JSON.stringify({
+            type: returnSignal ? "returnedSignal" : "newForeignSignal",
+            payload: {
+              senderId,
+              ...(!returnSignal && { username: username }),
+              signal
+            }
+          })
+        );
+      }
+      break;
+    }
+    default: {
+      console.error("Invalid command");
+    }
+  }
 });
 
 // express endpoint
@@ -34,39 +74,21 @@ app.get("/", (_, res) => {
   res.send("Websocket server for the movens chrome extension");
 });
 
-// wss handlers
-const parties = new Set<string>();
-
-function createChannelAndSub(partyId: string) {
-  parties.add(partyId);
-  sub.subscribe(partyId);
-}
-
 function getUsersInParty(partyId: string, callback: (err: Error | null, res: string[]) => void) {
-  cli.hvals(`${partyId}:users`, (err, res) => {
+  pub.smembers(`${partyId}:users`, (err, res) => {
     callback(err, res);
   });
 }
 
-class User {
-  userId: string;
-  partyId: string;
-
-  constructor(userId: string, partyId: string) {
-    this.userId = userId;
-    this.partyId = partyId;
-  }
-}
-
 wss.on("connection", (socket, req) => {
-  socket.id = uuidv4();
-  console.log(`New user ${socket.id} connected!`);
+  socket.userId = uuidv4();
+  console.log(`New user ${socket.userId} connected!`);
 
   socket.send(
     JSON.stringify({
       type: "userId",
       payload: {
-        userId: socket.id
+        userId: socket.userId
       }
     })
   );
@@ -85,23 +107,69 @@ wss.on("connection", (socket, req) => {
       );
     }
 
+    console.log("Message of type " + msg.type + " received");
     switch (msg.type) {
       case "getCurrentPartyUsers": {
-        const { partyId } = msg.payload;
-        // 1) Subscribe to channel partyId
-        createChannelAndSub(partyId);
-        // 2) Get currently existing sockets and send
+        const { partyId, username } = msg.payload;
+        // 1) Set add socket to set of sockets by partyId
+        socket.partyId = partyId;
+        if (!clients.has(partyId)) {
+          clients.set(partyId, new Map());
+        }
+        clients.get(partyId)?.set(socket.userId, socket);
+
+        // 2) Subscribe to channel partyId
+        sub.subscribe(partyId);
+        // 3) Get currently existing sockets and send
         getUsersInParty(partyId, (err, users) => {
           if (err) {
             console.error("Error fetching data for users");
           } else {
             console.log(`There are ${users.length} users currently in party ${partyId}`);
             socket.send(JSON.stringify({ type: "currentPartyUsers", payload: { users } }));
+            // 4) Add userId to list of users
+            pub.sadd(
+              `${partyId}:users`,
+              JSON.stringify({
+                userId: socket.userId,
+                username
+              })
+            );
           }
         });
-        // 3) Create User instance and save it to "partyId:participants" using hset
-        const newUser = new User(socket.id, partyId);
-        cli.hset(`${partyId}:users`, socket.id, JSON.stringify(newUser));
+        break;
+      }
+      case "newSignal": {
+        const { senderId, username, recipientId, signal } = msg.payload;
+        pub.publish(
+          socket.partyId,
+          JSON.stringify({
+            command: "redirectSignal",
+            data: {
+              senderId,
+              username,
+              recipientId,
+              signal,
+              returnSignal: false
+            }
+          })
+        );
+        break;
+      }
+      case "returnSignal": {
+        const { senderId, recipientId, signal } = msg.payload;
+        pub.publish(
+          socket.partyId,
+          JSON.stringify({
+            command: "redirectSignal",
+            data: {
+              senderId,
+              recipientId,
+              signal,
+              returnSignal: true
+            }
+          })
+        );
         break;
       }
       default: {
