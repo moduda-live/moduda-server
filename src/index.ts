@@ -63,6 +63,34 @@ sub.on("message", (channel, message) => {
       }
       break;
     }
+    case "broadcastMessage": {
+      const { senderId, content } = msg.data;
+      console.log(`senderId: ${senderId}`);
+      console.log(`content: ${content}`);
+      if (clients.has(channel)) {
+        const localStoredUsersForParty = clients.get(channel);
+
+        if (!localStoredUsersForParty) {
+          return;
+        }
+
+        localStoredUsersForParty.forEach((value, key) => {
+          console.log(`key is ${key}`);
+          if (key !== senderId) {
+            value.send(
+              JSON.stringify({
+                type: "newForeignMessage",
+                payload: {
+                  senderId,
+                  content
+                }
+              })
+            );
+          }
+        });
+      }
+      break;
+    }
     default: {
       console.error("Invalid command");
     }
@@ -168,6 +196,16 @@ wss.on("connection", (socket, req) => {
               signal,
               returnSignal: true
             }
+          })
+        );
+        break;
+      }
+      case "broadcastMessage": {
+        pub.publish(
+          socket.partyId,
+          JSON.stringify({
+            command: "broadcastMessage",
+            data: msg.payload
           })
         );
         break;
