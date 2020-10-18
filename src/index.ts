@@ -139,6 +139,7 @@ wss.on("connection", (socket, req) => {
     switch (msg.type) {
       case "getCurrentPartyUsers": {
         const { partyId, username } = msg.payload;
+        console.log(`user ${username} joined`);
         // 1) Set add socket to set of sockets by partyId
         socket.partyId = partyId;
         if (!clients.has(partyId)) {
@@ -160,7 +161,8 @@ wss.on("connection", (socket, req) => {
               `${partyId}:users`,
               JSON.stringify({
                 userId: socket.userId,
-                username
+                username,
+                isAdmin: users.length === 0 // initialize isAdmin to true if user is creating the party
               })
             );
           }
