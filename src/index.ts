@@ -3,7 +3,7 @@ import express from "express";
 import http from "http";
 import { v4 as uuidv4 } from "uuid";
 import redis from "redis";
-import { getUsersInParty } from "./service/users";
+import { getUsersInParty, addUser } from "./service/users";
 
 const SERVER_ID = process.env.SERVER_ID; // for horizontally scaling with docker
 const SERVER_PORT = 8080;
@@ -164,16 +164,15 @@ wss.on("connection", (socket, req) => {
         getUsersInParty(pub, partyId)
           .then((users) => {
             console.log(`There are ${users.length} users currently in party ${partyId}`);
+            console.log("users info: ", users);
             socket.send(JSON.stringify({ type: "currentPartyUsers", payload: { users } }));
-            // 4) Add userId to list of users
-            pub.sadd(
-              `${partyId}:users`,
-              JSON.stringify({
-                userId: socket.userId,
-                username,
-                isAdmin: users.length === 0 // initialize isAdmin to true if user is creating the party
-              })
-            );
+            // 4) Add joining user to redis
+            const joiningUser = {
+              userId: socket.userId,
+              username,
+              isAdmin: users.length === 0 ? "true" : "false"
+            };
+            addUser(pub, partyId, joiningUser);
           })
           .catch(() => {
             console.error("Error fetching data for users");
