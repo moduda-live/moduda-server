@@ -28,6 +28,32 @@ const clients = new Map<string, Map<string, ws.WebSocket>>();
 const sub = redis.createClient(REDIS_PORT, REDIS_HOST);
 const pub = sub.duplicate();
 
+function relayMessageToUsersInPartyExcept(
+  partyId: string,
+  excludeUserId: string,
+  msgType: string,
+  data: any
+) {
+  if (clients.has(partyId)) {
+    const localStoredUsersForParty = clients.get(partyId);
+
+    if (localStoredUsersForParty) {
+      localStoredUsersForParty.forEach((peer, id) => {
+        if (id !== excludeUserId) {
+          peer.send(
+            JSON.stringify({
+              type: msgType,
+              payload: {
+                ...data
+              }
+            })
+          );
+        }
+      });
+    }
+  }
+}
+
 sub.on("message", (channel, message) => {
   let msg;
   try {
@@ -64,31 +90,11 @@ sub.on("message", (channel, message) => {
       break;
     }
     case "broadcastMessage": {
-      const { senderId, content } = msg.data;
-      console.log(`senderId: ${senderId}`);
-      console.log(`content: ${content}`);
-      if (clients.has(channel)) {
-        const localStoredUsersForParty = clients.get(channel);
-
-        if (!localStoredUsersForParty) {
-          return;
-        }
-
-        localStoredUsersForParty.forEach((value, key) => {
-          console.log(`key is ${key}`);
-          if (key !== senderId) {
-            value.send(
-              JSON.stringify({
-                type: "newForeignMessage",
-                payload: {
-                  senderId,
-                  content
-                }
-              })
-            );
-          }
-        });
-      }
+      relayMessageToUsersInPartyExcept(channel, msg.data.senderId, "newForeignMessage", msg.data);
+      break;
+    }
+    case "setUserMute": {
+      relayMessageToUsersInPartyExcept(channel, msg.data.userId, msg.command, msg.data);
       break;
     }
     default: {
@@ -106,6 +112,16 @@ function getUsersInParty(partyId: string, callback: (err: Error | null, res: str
   pub.smembers(`${partyId}:users`, (err, res) => {
     callback(err, res);
   });
+}
+
+function broadcast(partyId: string, command: string, payload: any) {
+  pub.publish(
+    partyId,
+    JSON.stringify({
+      command,
+      data: payload
+    })
+  );
 }
 
 wss.on("connection", (socket, req) => {
@@ -170,46 +186,31 @@ wss.on("connection", (socket, req) => {
         break;
       }
       case "newSignal": {
-        const { senderId, username, recipientId, signal } = msg.payload;
-        pub.publish(
-          socket.partyId,
-          JSON.stringify({
-            command: "redirectSignal",
-            data: {
-              senderId,
-              username,
-              recipientId,
-              signal,
-              returnSignal: false
-            }
-          })
-        );
+        const data = {
+          ...msg.payload,
+          returnSignal: false
+        };
+        broadcast(socket.partyId, "redirectSignal", data);
         break;
       }
       case "returnSignal": {
-        const { senderId, recipientId, signal } = msg.payload;
-        pub.publish(
-          socket.partyId,
-          JSON.stringify({
-            command: "redirectSignal",
-            data: {
-              senderId,
-              recipientId,
-              signal,
-              returnSignal: true
-            }
-          })
-        );
+        const data = {
+          ...msg.payload,
+          returnSignal: true
+        };
+        broadcast(socket.partyId, "redirectSignal", data);
         break;
       }
       case "broadcastMessage": {
-        pub.publish(
-          socket.partyId,
-          JSON.stringify({
-            command: "broadcastMessage",
-            data: msg.payload
-          })
-        );
+        broadcast(socket.partyId, "broadcastMessage", msg.payload);
+        break;
+      }
+      case "setUserMute": {
+        const data = {
+          ...msg.payload,
+          userId: socket.userId
+        };
+        broadcast(socket.partyId, "setUserMute", data);
         break;
       }
       default: {
