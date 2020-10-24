@@ -3,6 +3,7 @@ import express from "express";
 import http from "http";
 import { v4 as uuidv4 } from "uuid";
 import redis from "redis";
+import { getUsersInParty } from "./service/users";
 
 const SERVER_ID = process.env.SERVER_ID; // for horizontally scaling with docker
 const SERVER_PORT = 8080;
@@ -108,12 +109,6 @@ app.get("/", (_, res) => {
   res.send("Websocket server for the movens chrome extension");
 });
 
-function getUsersInParty(partyId: string, callback: (err: Error | null, res: string[]) => void) {
-  pub.smembers(`${partyId}:users`, (err, res) => {
-    callback(err, res);
-  });
-}
-
 function broadcast(partyId: string, command: string, payload: any) {
   pub.publish(
     partyId,
@@ -166,10 +161,8 @@ wss.on("connection", (socket, req) => {
         // 2) Subscribe to channel partyId
         sub.subscribe(partyId);
         // 3) Get currently existing sockets and send
-        getUsersInParty(partyId, (err, users) => {
-          if (err) {
-            console.error("Error fetching data for users");
-          } else {
+        getUsersInParty(pub, partyId)
+          .then((users) => {
             console.log(`There are ${users.length} users currently in party ${partyId}`);
             socket.send(JSON.stringify({ type: "currentPartyUsers", payload: { users } }));
             // 4) Add userId to list of users
@@ -181,8 +174,10 @@ wss.on("connection", (socket, req) => {
                 isAdmin: users.length === 0 // initialize isAdmin to true if user is creating the party
               })
             );
-          }
-        });
+          })
+          .catch(() => {
+            console.error("Error fetching data for users");
+          });
         break;
       }
       case "newSignal": {
