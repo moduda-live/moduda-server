@@ -73,7 +73,7 @@ sub.on("message", (channel, message) => {
   // Properly formatted now
   switch (msg.command) {
     case "redirectSignal": {
-      const { senderId, username, recipientId, signal, returnSignal } = msg.data;
+      const { userId, username, recipientId, signal, returnSignal } = msg.data;
       if (clients.has(channel) && clients.get(channel)?.has(recipientId)) {
         const client = (clients.get(channel) as Map<string, ws.WebSocket>).get(
           recipientId
@@ -82,7 +82,7 @@ sub.on("message", (channel, message) => {
           JSON.stringify({
             type: returnSignal ? "returnedSignal" : "newForeignSignal",
             payload: {
-              senderId,
+              senderId: userId,
               ...(!returnSignal && { username: username }),
               signal
             }
@@ -92,14 +92,12 @@ sub.on("message", (channel, message) => {
       break;
     }
     case "broadcastMessage": {
-      relayMessageToUsersInPartyExcept(channel, msg.data.senderId, "newForeignMessage", msg.data);
+      relayMessageToUsersInPartyExcept(channel, msg.data.userId, "newForeignMessage", msg.data);
       break;
     }
-    case "setUserMute": {
-      relayMessageToUsersInPartyExcept(channel, msg.data.userId, msg.command, msg.data);
-      break;
-    }
-    case "timeUpdate": {
+    case "setUserMute":
+    case "timeUpdate":
+    case "setAdminControls": {
       relayMessageToUsersInPartyExcept(channel, msg.data.userId, msg.command, msg.data);
       break;
     }
@@ -114,12 +112,15 @@ app.get("/", (_, res) => {
   res.send("Websocket server for the movens chrome extension");
 });
 
-function broadcast(partyId: string, command: string, payload: any) {
+function broadcast(socket: ws.WebSocket, command: string, payload: any) {
   pub.publish(
-    partyId,
+    socket.partyId,
     JSON.stringify({
       command,
-      data: payload
+      data: {
+        ...payload,
+        userId: socket.userId
+      }
     })
   );
 }
@@ -202,7 +203,6 @@ wss.on("connection", (socket, req) => {
       );
     }
 
-    console.log("Message of type " + msg.type + " received");
     switch (msg.type) {
       case "getCurrentPartyUsers": {
         const { partyId, username } = msg.payload;
@@ -241,7 +241,7 @@ wss.on("connection", (socket, req) => {
           ...msg.payload,
           returnSignal: false
         };
-        broadcast(socket.partyId, "redirectSignal", data);
+        broadcast(socket, "redirectSignal", data);
         break;
       }
       case "returnSignal": {
@@ -249,27 +249,14 @@ wss.on("connection", (socket, req) => {
           ...msg.payload,
           returnSignal: true
         };
-        broadcast(socket.partyId, "redirectSignal", data);
+        broadcast(socket, "redirectSignal", data);
         break;
       }
-      case "broadcastMessage": {
-        broadcast(socket.partyId, "broadcastMessage", msg.payload);
-        break;
-      }
-      case "setUserMute": {
-        const data = {
-          ...msg.payload,
-          userId: socket.userId
-        };
-        broadcast(socket.partyId, "setUserMute", data);
-        break;
-      }
-      case "timeUpdate": {
-        const data = {
-          ...msg.payload,
-          userId: socket.userId
-        };
-        broadcast(socket.partyId, "timeUpdate", data);
+      case "broadcastMessage":
+      case "setUserMute":
+      case "timeUpdate":
+      case "setAdminControls": {
+        broadcast(socket, msg.type, msg.payload);
         break;
       }
       default: {
