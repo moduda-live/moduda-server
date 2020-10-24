@@ -3,7 +3,7 @@ import express from "express";
 import http from "http";
 import { v4 as uuidv4 } from "uuid";
 import redis from "redis";
-import { getUsersInParty, addUser } from "./service/users";
+import { getUsersInParty, addUser, removeUser } from "./service/users";
 
 const SERVER_ID = process.env.SERVER_ID; // for horizontally scaling with docker
 const SERVER_PORT = 8080;
@@ -131,6 +131,13 @@ wss.on("connection", (socket, req) => {
       }
     })
   );
+
+  socket.on("close", () => {
+    // remove user represented by the closed socket from party locally
+    clients.get(socket.partyId)?.delete(socket.userId);
+    // delete from redis
+    removeUser(pub, socket.partyId, socket.userId);
+  });
 
   socket.on("message", (data) => {
     let msg;

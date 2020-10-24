@@ -1,3 +1,5 @@
+import { rejects } from "assert";
+import { resolve } from "path";
 import { RedisClient } from "redis";
 
 interface User {
@@ -63,6 +65,21 @@ export function addUser(client: RedisClient, partyId: string, userDetails: User)
           reject(err);
         }
         resolve();
+      });
+  });
+}
+
+export function removeUser(client: RedisClient, partyId: string, userId: string): Promise<any> {
+  return new Promise((resolve, reject) => {
+    client
+      .multi()
+      .srem(`${partyId}:users`, userId)
+      .del(`${partyId}:user:${userId}`)
+      .exec((err, res) => {
+        if (err) {
+          reject(err);
+        }
+        resolve(res);
       });
   });
 }
