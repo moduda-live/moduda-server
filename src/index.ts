@@ -3,7 +3,8 @@ import express from "express";
 import http from "http";
 import { v4 as uuidv4 } from "uuid";
 import redis from "redis";
-import { getUsersInParty, addUser, removeUser } from "./service/users";
+import { getUsersInParty, addUser, getUser, removeUser } from "./service/users";
+import { assert } from "console";
 
 const SERVER_ID = process.env.SERVER_ID; // for horizontally scaling with docker
 const SERVER_PORT = 8080;
@@ -132,11 +133,41 @@ wss.on("connection", (socket, req) => {
     })
   );
 
-  socket.on("close", () => {
+  socket.on("close", async () => {
     // remove user represented by the closed socket from party locally
     clients.get(socket.partyId)?.delete(socket.userId);
     // delete from redis
     removeUser(pub, socket.partyId, socket.userId);
+
+    const partyEmpty = clients.get(socket.partyId)?.size === 0;
+
+    if (partyEmpty) {
+      // do nothing else if party is empty
+      return;
+    }
+
+    const remainingUserIds = Array.from(clients.get(socket.partyId)?.keys() ?? []);
+    const remainingUsers = await Promise.all(
+      remainingUserIds.map((id) => getUser(pub, socket.partyId, id))
+    );
+    assert(remainingUsers.length > 0, "Number of users remaining in the party is more than 0");
+    const remainingAdmins = remainingUsers.filter((user) => user.isAdmin === "true");
+    if (remainingAdmins.length === 0) {
+      // let's make someone else an admin if the number of admins in the party is 0.
+      const randomAdmin = remainingUsers[Math.floor(Math.random() * remainingUsers.length)];
+      remainingUsers.forEach((user) => {
+        const peer = clients.get(socket.partyId)?.get(user.userId);
+        peer?.send(
+          JSON.stringify({
+            type: "promoteToAdmin",
+            payload: {
+              userId: randomAdmin.userId,
+              username: randomAdmin.username
+            }
+          })
+        );
+      });
+    }
   });
 
   socket.on("message", (data) => {
@@ -157,7 +188,6 @@ wss.on("connection", (socket, req) => {
     switch (msg.type) {
       case "getCurrentPartyUsers": {
         const { partyId, username } = msg.payload;
-        console.log(`user ${username} joined`);
         // 1) Set add socket to set of sockets by partyId
         socket.partyId = partyId;
         if (!clients.has(partyId)) {
@@ -224,8 +254,8 @@ wss.on("connection", (socket, req) => {
   });
 });
 
-wss.on("error", (error) => {
-  console.error(error);
+wss.on("close", () => {
+  // TODO: Cleanup?
 });
 
 server.listen(SERVER_PORT, () => {
