@@ -1,9 +1,12 @@
 import { RedisClient } from "redis";
 
-interface User {
+const SIX_HOURS = 6 * 60 * 60 * 1000;
+
+export interface User {
   userId: string;
   username: string;
   isAdmin: string;
+  isRoomOwner: string;
 }
 
 export function getUser(
@@ -44,7 +47,7 @@ export function getUsersInParty(client: RedisClient, partyId: string): Promise<A
 }
 
 export function addUser(client: RedisClient, partyId: string, userDetails: User): Promise<void> {
-  const { userId, username, isAdmin } = userDetails;
+  const { userId, username, isAdmin, isRoomOwner } = userDetails;
   return new Promise((resolve, reject) => {
     client
       .multi()
@@ -56,7 +59,9 @@ export function addUser(client: RedisClient, partyId: string, userDetails: User)
         "username",
         username,
         "isAdmin",
-        isAdmin
+        isAdmin,
+        "isRoomOwner",
+        isRoomOwner
       )
       .exec((err) => {
         if (err) {
