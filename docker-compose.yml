@@ -1,0 +1,15 @@
+version: "3.7"
+
+services:
+    redis:
+        container_name: redis
+        image: redis
+        command: ["redis-server", "--bind", "redis", "--port", "6379"]
+    movens-server:
+        container_name: movens-server
+        environment:
+            - REDIS_PORT=6379
+        external_links:
+            - redis
+        depends_on:
+            - redis
