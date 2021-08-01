@@ -2,14 +2,10 @@ version: "3.7"
 
 services:
     redis:
-        container_name: redis
-        image: redis
         restart: always
-    movens-server:
-        container_name: movens-server
+    movens-server_1:
         restart: always
         build: .
-        environment:
-            - PORT=${PORT}
-        ports:
-            - 4000:${PORT}
+    movens-server_2:
+        restart: always
+        build: .

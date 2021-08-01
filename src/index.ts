@@ -7,7 +7,7 @@ import { getUsersInParty, addUser, getUser, removeUser } from "./service/users";
 import { assert } from "console";
 
 const SERVER_ID = process.env.SERVER_ID; // for horizontally scaling with docker
-const SERVER_PORT = process.env.PORT;
+const SERVER_PORT = process.env.PORT || 8080;
 const REDIS_HOST = "redis"; // "127.0.0.1";
 const REDIS_PORT = parseInt(process.env.REDIS_PORT as string, 10);
 
@@ -56,7 +56,13 @@ function relayMessageToUsersInPartyExcept(
     }
 }
 
+const connections: ws.WebSocket[] = [];
+
 sub.on("message", (channel, message) => {
+    console.log(`Server ${SERVER_ID} received message in channel ${channel} msg: ${message}`);
+    connections.forEach((c) => c.send(SERVER_ID + ":" + message));
+    return;
+
     let msg;
     try {
         msg = JSON.parse(message);
@@ -130,7 +136,13 @@ function broadcast(socket: ws.WebSocket, command: string, payload: any) {
     );
 }
 
+sub.subscribe("testing");
+
 wss.on("connection", (socket, req) => {
+    connections.push(socket);
+    socket.send("Connected to " + SERVER_ID);
+    return;
+
     socket.userId = uuidv4();
     console.log(`New user ${socket.userId} connected!`);
 
@@ -195,6 +207,9 @@ wss.on("connection", (socket, req) => {
     });
 
     socket.on("message", (data) => {
+        console.log(`${SERVER_ID} received message ${data}`);
+        pub.publish("testing", data as string);
+        return;
         let msg;
         try {
             msg = JSON.parse(data as string);
@@ -206,6 +221,7 @@ wss.on("connection", (socket, req) => {
                     payload: { message: "Message sent was not in JSON format" }
                 })
             );
+            return;
         }
 
         switch (msg.type) {
@@ -286,5 +302,5 @@ wss.on("close", () => {
 });
 
 server.listen(SERVER_PORT, () => {
-    console.log(`Websocket server listening on port ${SERVER_PORT}`);
+    console.log(`Websocket server ${SERVER_ID} listening on port ${SERVER_PORT}`);
 });
