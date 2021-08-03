@@ -1,0 +1,25 @@
+{
+    "AWSEBDockerrunVersion": 2,
+    "containerDefinitions": [
+        {
+            "name": "redis",
+            "image": "redis",
+            "memory": 256,
+            "essential": true
+        },
+        {
+            "name": "movens-server",
+            "image": "551066471214.dkr.ecr.eu-west-2.amazonaws.com/movens-server",
+            "memory": 256,
+            "command": ["node", "index.js"],
+            "essential": true,
+            "links": ["redis"],
+            "portMappings": [
+                {
+                    "hostPort": 80,
+                    "containerPort": 8080
+                }
+            ]
+        }
+    ]
+}

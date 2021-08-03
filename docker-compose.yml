@@ -1,27 +1,14 @@
 version: "3.7"
 
 services:
-    load_balancer:
-        image: haproxy
-        ports:
-            - 80:80
-        volumes:
-            - ./haproxy:/usr/local/etc/haproxy
     redis:
         image: redis
         command: ["redis-server", "--bind", "redis", "--port", "6379"]
-    movens-server_1:
+    movens-server:
+        container_name: movens-server
+        image: 551066471214.dkr.ecr.eu-west-2.amazonaws.com/movens-server
         environment:
             - REDIS_PORT=6379
-            - SERVER_ID=1
-        external_links:
-            - redis
-        depends_on:
-            - redis
-    movens-server_2:
-        environment:
-            - REDIS_PORT=6379
-            - SERVER_ID=2
         external_links:
             - redis
         depends_on:

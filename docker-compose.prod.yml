@@ -3,9 +3,8 @@ version: "3.7"
 services:
     redis:
         restart: always
-    movens-server_1:
-        restart: always
-        build: .
-    movens-server_2:
-        restart: always
-        build: .
+    movens-server:
+        environment:
+            - PORT=8080
+        ports:
+            - 80:8080

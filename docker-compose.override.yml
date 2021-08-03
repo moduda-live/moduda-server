@@ -1,18 +1,15 @@
 version: "3.7"
 
 services:
+    movens-server:
+        build:
+            context: .
+            dockerfile: Dockerfile.dev
+        env_file: .env.local
+        ports:
+            - 8080:8080
+        volumes:
+            - ./src:/usr/node/app/src
+            - ./nodemon.json:/usr/node/app/nodemon.json
     redis:
-        restart: always
-    movens-server_1:
-        restart: always
-        build:
-            context: .
-            dockerfile: Dockerfile.dev
-    movens-server_2:
-        restart: always
-        build:
-            context: .
-            dockerfile: Dockerfile.dev
-        # volumes:
-        #     - ./src:/usr/node/app/src
-        #     - ./nodemon.json:/usr/node/app/nodemon.json
+        image: redis

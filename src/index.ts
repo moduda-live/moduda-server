@@ -9,7 +9,7 @@ import { assert } from "console";
 const SERVER_ID = process.env.SERVER_ID; // for horizontally scaling with docker
 const SERVER_PORT = process.env.PORT || 8080;
 const REDIS_HOST = "redis"; // "127.0.0.1";
-const REDIS_PORT = parseInt(process.env.REDIS_PORT as string, 10);
+const REDIS_PORT = 6379;
 
 declare module "ws" {
     export class WebSocket extends ws {
