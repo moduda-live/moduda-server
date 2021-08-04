@@ -1,6 +1,4 @@
-FROM node:15
-
-RUN echo "Building for production..."
+FROM node:15 AS BASE
 
 WORKDIR /usr/node/app
 
@@ -9,6 +7,7 @@ COPY package*.json ./
 RUN npm install
 
 COPY . .
+
 
 RUN npm run build
 
@@ -26,6 +25,9 @@ COPY --from=0 /usr/node/app/build .
 # RUN npm install pm2 -g
 # CMD ["pm2-runtime","app.js"]
 
+# COPY ./wait-for-it.sh ./
+# RUN chmod +x wait-for-it.sh
+
 EXPOSE 8080
 
-CMD ["node", "index.js"]
+ENTRYPOINT ["node", "index.js"]
