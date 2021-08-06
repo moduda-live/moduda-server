@@ -5,14 +5,15 @@ services:
     image: "redis"
     ports:
       - 6379:6379
-    logging:
-      driver: awslogs
-      options:
-        awslogs-group: movens
-        awslogs-region: eu-west-2
-        awslogs-stream-prefix: redis
+    # logging:
+    #   driver: awslogs
+    #   options:
+    #     awslogs-group: movens
+    #     awslogs-region: eu-west-2
+    #     awslogs-stream-prefix: redis
+
   movens-server:
-    image: "551066471214.dkr.ecr.eu-west-2.amazonaws.com/movens-server"
+    # image: "551066471214.dkr.ecr.eu-west-2.amazonaws.com/movens-server"
     environment:
       - REDIS_PORT=6379
       - PORT=8080
@@ -20,9 +21,9 @@ services:
       - 80:8080
     links:
       - redis
-    logging:
-      driver: awslogs
-      options:
-        awslogs-group: movens
-        awslogs-region: eu-west-2
-        awslogs-stream-prefix: movens-server
+    # logging:
+    #   driver: awslogs
+    #   options:
+    #     awslogs-group: movens
+    #     awslogs-region: eu-west-2
+    #     awslogs-stream-prefix: movens-server

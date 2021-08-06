@@ -1,0 +1,15 @@
+version: "3"
+
+services:
+  redis:
+    container_name: redis
+    image: redis
+    restart: always
+  movens-server:
+    restart: always
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      - ./src:/usr/node/app/src
+      - ./nodemon.json:/usr/node/app/nodemon.json
