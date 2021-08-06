@@ -9,22 +9,40 @@ export interface User {
   isRoomOwner: string;
 }
 
-export function getUser(
-  client: RedisClient,
-  partyId: string,
-  userId: string
-): Promise<{ [key: string]: string }> {
+export function getUser(client: RedisClient, partyId: string, userId: string): Promise<User> {
   return new Promise((resolve, reject) => {
     client.hgetall(`${partyId}:user:${userId}`, (err, user) => {
       if (err) {
         reject(err);
       }
-      resolve(user);
+      resolve((user as unknown) as User); // hacky but works
     });
   });
 }
 
-export function getUsersInParty(client: RedisClient, partyId: string): Promise<Array<string>> {
+export function updateUser(client: RedisClient, partyId: string, userDetails: User): Promise<void> {
+  const { userId, username, isAdmin, isRoomOwner } = userDetails;
+  console.log("updating to: ", isAdmin);
+  return new Promise((resolve, reject) => {
+    client.hmset(
+      `${partyId}:user:${userId}`,
+      "userId",
+      userId,
+      "username",
+      username,
+      "isAdmin",
+      isAdmin,
+      "isRoomOwner",
+      isRoomOwner,
+      (err) => {
+        if (err) reject(err);
+        resolve();
+      }
+    );
+  });
+}
+
+export function getUsersInParty(client: RedisClient, partyId: string): Promise<Array<User>> {
   return new Promise((resolve, reject) => {
     client.smembers(`${partyId}:users`, (err, userIds) => {
       if (err) {
@@ -34,10 +52,7 @@ export function getUsersInParty(client: RedisClient, partyId: string): Promise<A
       console.log("userIds of users in party: ", userIds);
       if (userIds.length > 0) {
         Promise.all(userIds.map((userId) => getUser(client, partyId, userId)))
-          .then((users) => {
-            return users.map((user) => JSON.stringify(user));
-          })
-          .then((userStrs) => resolve(userStrs))
+          .then((users) => resolve(users))
           .catch((err) => reject(err));
       } else {
         resolve([]);

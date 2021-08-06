@@ -3,7 +3,7 @@ import express from "express";
 import http from "http";
 import { v4 as uuidv4 } from "uuid";
 import redis from "redis";
-import { getUsersInParty, addUser, getUser, removeUser } from "./service/users";
+import { getUsersInParty, addUser, removeUser, updateUser, User } from "./service/users";
 import { assert } from "console";
 
 const SERVER_ID = process.env.SERVER_ID || 1; // for horizontally scaling with docker
@@ -59,6 +59,7 @@ function relayMessageToUsersInPartyExcept(
 const connections: ws.WebSocket[] = [];
 
 sub.on("message", (channel, message) => {
+  if (!clients.has(channel)) return;
   //   console.log(`Server ${SERVER_ID} received message in channel ${channel} msg: ${message}`);
   //   connections.forEach((c) => c.send(SERVER_ID + ":" + message));
   //   return;
@@ -80,7 +81,7 @@ sub.on("message", (channel, message) => {
   switch (msg.command) {
     case "redirectSignal": {
       const { userId, username, recipientId, signal, returnSignal } = msg.data;
-      if (clients.has(channel) && clients.get(channel)?.has(recipientId)) {
+      if (clients.get(channel)?.has(recipientId)) {
         const client = (clients.get(channel) as Map<string, ws.WebSocket>).get(
           recipientId
         ) as ws.WebSocket;
@@ -104,7 +105,23 @@ sub.on("message", (channel, message) => {
     case "setUserMute":
     case "timeUpdate":
     case "setAdminControls": {
+      console.log("msg.command :>> ", msg.command);
       relayMessageToUsersInPartyExcept(channel, msg.data.userId, msg.command, msg.data);
+      break;
+    }
+    case "promoteToRoomOwner": {
+      const userMapping = clients.get(channel);
+      for (const userSocket of userMapping?.values() ?? []) {
+        userSocket.send(
+          JSON.stringify({
+            type: "promoteToRoomOwner",
+            payload: {
+              userId: msg.data.userId,
+              username: msg.data.username
+            }
+          })
+        );
+      }
       break;
     }
     default: {
@@ -131,8 +148,6 @@ function broadcast(socket: ws.WebSocket, command: string, payload: any) {
   );
 }
 
-sub.subscribe("testing");
-
 wss.on("connection", (socket, req) => {
   //   connections.push(socket);
   //   socket.send("Connected to " + SERVER_ID);
@@ -151,54 +166,66 @@ wss.on("connection", (socket, req) => {
   );
 
   socket.on("close", async () => {
-    // remove user represented by the closed socket from party locally
-    clients.get(socket.partyId)?.delete(socket.userId);
-    // delete from redis
-    removeUser(pub, socket.partyId, socket.userId);
+    try {
+      // remove user represented by the closed socket from party locally
+      clients.get(socket.partyId)?.delete(socket.userId);
+      // delete from redis
+      removeUser(pub, socket.partyId, socket.userId);
 
-    const partyEmpty = clients.get(socket.partyId)?.size === 0;
+      const remainingUsers = await getUsersInParty(pub, socket.partyId);
+      console.log("after deleting, remainingUsers :>> ", remainingUsers);
 
-    if (partyEmpty) {
-      // do nothing else if party is empty
-      return;
-    }
+      const partyEmpty = !remainingUsers || remainingUsers.length === 0;
 
-    const remainingUserIds = Array.from(clients.get(socket.partyId)?.keys() ?? []);
-    const remainingUsers = await Promise.all(
-      remainingUserIds.map((id) => getUser(pub, socket.partyId, id))
-    );
-    assert(remainingUsers.length > 0, "Number of users remaining in the party is more than 0");
+      if (partyEmpty) {
+        // if party is empty, let's remove it
+        return;
+      }
 
-    const isThereRoomOwner = remainingUsers.some((user) => user.isOwner);
-    if (isThereRoomOwner) {
-      // the room owner is by definition also an admin so no need to worry, let's return
-      return;
-    }
+      assert(remainingUsers.length > 0, "Number of users remaining in the party is more than 0");
 
-    // the previous room owner just left the party, let's assign a new room owner
-    const remainingAdmins = remainingUsers.filter((user) => user.isAdmin === "true");
+      const isThereRoomOwner = remainingUsers.some((user) => user.isRoomOwner === "true");
+      if (isThereRoomOwner) {
+        // the room owner is by definition also an admin so no need to worry, let's return
+        return;
+      }
 
-    let randomAdmin: { [key: string]: string };
+      // the previous room owner just left the party, let's assign a new room owner
+      const remainingAdmins = remainingUsers.filter((user) => user.isAdmin === "true");
 
-    if (remainingAdmins.length > 0) {
-      // there are admins left, let's pick one of them for new room ownership
-      randomAdmin = remainingAdmins[Math.floor(Math.random() * remainingAdmins.length)];
-    } else {
-      randomAdmin = remainingUsers[Math.floor(Math.random() * remainingUsers.length)];
-    }
+      let randomAdmin: User;
 
-    remainingUsers.forEach((user) => {
-      const peer = clients.get(socket.partyId)?.get(user.userId);
-      peer?.send(
+      if (remainingAdmins.length > 0) {
+        // there are admins left, let's pick one of them for new room ownership
+        randomAdmin = remainingAdmins[Math.floor(Math.random() * remainingAdmins.length)];
+      } else {
+        randomAdmin = remainingUsers[Math.floor(Math.random() * remainingUsers.length)];
+      }
+
+      console.log("Picked admin: ");
+      console.log(randomAdmin);
+
+      // first, update the user details for the randomAdmin user in redis
+      await updateUser(pub, socket.partyId, {
+        ...randomAdmin,
+        isAdmin: "true"
+      });
+
+      // then, broadcast room promotion info to all remaining users of the party
+      pub.publish(
+        socket.partyId,
         JSON.stringify({
-          type: "promoteToRoomOwner",
-          payload: {
+          command: "promoteToRoomOwner",
+          data: {
             userId: randomAdmin.userId,
             username: randomAdmin.username
           }
         })
       );
-    });
+    } catch (error) {
+      console.error("Something went wrong while cleaning up after user left the party");
+      console.error(error.message);
+    }
   });
 
   socket.on("message", (data) => {
@@ -235,7 +262,10 @@ wss.on("connection", (socket, req) => {
         getUsersInParty(pub, partyId)
           .then((users) => {
             console.log(`There are ${users.length} users currently in party ${partyId}`);
-            console.log("users info: ", users);
+            console.log(
+              "users info: ",
+              users.map((u) => JSON.stringify(u))
+            );
             socket.send(JSON.stringify({ type: "currentPartyUsers", payload: { users } }));
             // 4) Add joining user to redis
             const isUserCreatingRoom = users.length === 0 ? "true" : "false";
