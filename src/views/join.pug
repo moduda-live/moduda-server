@@ -1,0 +1,18 @@
+extends layout
+
+block layout-content
+  section.hero.is-fullheight
+    .hero-body
+      .container.is-max-desktop.is-flex.is-justify-content-center.is-align-items-center.is-flex-direction-column
+        img.mb-5(src='./icon.png' width="100" height="100" alt='icon' style="margin-top: -50;")
+        if !redirectUrl && !partyId
+          .notification.is-danger
+            p Oops! The link you entered is missing some crucial information. Are you sure that's the correct invite link?
+        else if !partyId
+          .notification.is-danger
+            p Oops! We couldn't figure out which party you are trying to join. Are you sure you copied the correct invite link?
+        else if !redirectUrl 
+          .notification.is-danger
+            p Ooops! We couldn't figure out which link to redirect you to. Are you sure you copied the correct invite link?
+        else 
+          h1.title.is-4 Hang on a second...

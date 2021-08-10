@@ -1,0 +1,41 @@
+*,
+*:before,
+*:after {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+body {
+  background: rgb(129, 95, 224);
+  background: linear-gradient(
+    174deg,
+    rgba(129, 95, 224, 0.05307072829131656) 0%,
+    rgba(227, 80, 54, 0.05587184873949583) 100%
+  );
+}
+
+.fab {
+  font-family: "FontAwesome";
+  font-style: normal;
+}
+
+@media (max-width: 500px) {
+  .reverse-columns {
+    flex-direction: column-reverse;
+    display: flex;
+  }
+}
+
+.titled {
+  font-family: "Merriweather", serif !important;
+  font-size: 58px !important;
+  font-weight: 400 !important;
+  line-height: 64px !important;
+}
+
+.subtitled {
+  font-family: "Merriweather", serif !important;
+  font-size: 22px !important;
+  font-weight: 400 !important;
+  line-height: 36px !important;
+}

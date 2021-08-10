@@ -1,7 +1,7 @@
 {
-  "name": "movens-server",
-  "version": "1.0.0",
-  "description": "Websocket server for the movens chrome extension",
+  "name": "moduda-server",
+  "version": "0.0.1",
+  "description": "Websocket server for the moduda chrome extension",
   "main": "index.js",
   "scripts": {
     "start": "npm run build && node build/index.js",
@@ -13,14 +13,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/movens-app/movens-server.git"
+    "url": "git+https://github.com/moduda-live/moduda-server.git"
   },
   "author": "",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/movens-app/movens-server/issues"
+    "url": "https://github.com/moduda-live/moduda-server/issues"
   },
-  "homepage": "https://github.com/movens-app/movens-server#readme",
+  "homepage": "https://github.com/moduda-live/moduda-server#readme",
   "devDependencies": {
     "@types/express": "^4.17.8",
     "@types/node": "^14.6.4",
@@ -39,6 +39,7 @@
     "typescript": "^4.0.2"
   },
   "dependencies": {
+    "bulma": "^0.9.3",
     "express": "^4.17.1",
     "redis": "^3.0.2",
     "uuid": "^8.3.0",

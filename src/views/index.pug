@@ -1,0 +1,33 @@
+extends layout
+
+block layout-content
+  section.hero.is-fullheight
+    .hero-body
+      .container.is-fullhd
+        .columns.is-vcentered.reverse-columns
+          .column.is-10-mobile.is-10-tablet.is-5-desktop.is-5-widescreen.is-5-fullhd.mx-5(data-aos='fade-down')
+            img.mb-2(src='./icon.png' width='40' height='40' alt='icon')
+            .titled.title.is-2.mb-6
+              | Watch videos together
+            .subtitled.subtitle.has-text-grey.is-4.has-text-weight-normal.is-family-sans-serif
+              b Moduda
+              |  (Korean for &quot;together&quot;, &#xBAA8;&#xB450;&#xB2E4;) is a chrome extension that synchronizes video
+              |                             playbacks on the web, allowing everyone to watch videos together.
+            .buttons
+              button.button.is-danger
+                span.icon
+                  i.fab.fa-chrome
+                span
+                  | Get it on Chrome Store
+              button.button
+                span.icon
+                  i.fab.fa-github
+                a(href='https://github.com/moduda-live/moduda-extension' target='_blank')
+                  | View project on Github
+          .column.is-10-mobile.is-10-tablet.is-6-desktop.is-6-widescreen.is-6-fullhd(data-aos='fade-right')
+            figure.image
+              img(src='./product.png')
+    .hero-foot
+      .container.is-centered.has-text-centered.mb-2
+        | Made with &#x2764;&#xFE0F; by 
+        a(href='https://github.com/sarckk' target='_blank') sarckk

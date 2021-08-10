@@ -1,12 +1,13 @@
 import ws from "ws";
-import express from "express";
+import express, { Request, Response } from "express";
 import http from "http";
 import { v4 as uuidv4 } from "uuid";
 import redis from "redis";
 import { getUsersInParty, addUser, removeUser, updateUser, User } from "./service/users";
 import { assert } from "console";
+import path from "path";
 
-const SERVER_ID = process.env.SERVER_ID || 1; // for horizontally scaling with docker
+const SERVER_ID = process.env.SERVER_ID || 1; // for horizontal scaling, unused atm
 const SERVER_PORT = process.env.PORT || 8080;
 const REDIS_HOST = "redis"; // "127.0.0.1";
 const REDIS_PORT = 6379;
@@ -20,8 +21,24 @@ declare module "ws" {
 
 // express + websocket server
 const app = express();
+app.set("views", path.join(__dirname, "views"));
+app.set("view engine", "pug");
+app.use(express.static(path.join(__dirname, "public")));
+
 const server = http.createServer(app);
 const wss = new ws.Server({ server });
+
+// website
+app.get("/", (_, res) => {
+  res.render("index");
+});
+
+// room join page
+app.get("/join", (req: Request, res: Response) => {
+  const redirectUrl = req.query.redirectUrl;
+  const partyId = req.query.partyId;
+  res.render("join", { redirectUrl, partyId });
+});
 
 // holds partyId -> User map
 const clients = new Map<string, Map<string, ws.WebSocket>>();
@@ -56,13 +73,8 @@ function relayMessageToUsersInPartyExcept(
   }
 }
 
-const connections: ws.WebSocket[] = [];
-
 sub.on("message", (channel, message) => {
   if (!clients.has(channel)) return;
-  //   console.log(`Server ${SERVER_ID} received message in channel ${channel} msg: ${message}`);
-  //   connections.forEach((c) => c.send(SERVER_ID + ":" + message));
-  //   return;
 
   let msg;
   try {
@@ -130,11 +142,6 @@ sub.on("message", (channel, message) => {
   }
 });
 
-// // express endpoint
-app.get("/", (_, res) => {
-  res.send("Websocket server for the movens chrome extension");
-});
-
 function broadcast(socket: ws.WebSocket, command: string, payload: any) {
   pub.publish(
     socket.partyId,
@@ -149,10 +156,6 @@ function broadcast(socket: ws.WebSocket, command: string, payload: any) {
 }
 
 wss.on("connection", (socket, req) => {
-  //   connections.push(socket);
-  //   socket.send("Connected to " + SERVER_ID);
-  //   return;
-
   socket.userId = uuidv4();
   console.log(`New user ${socket.userId} connected!`);
 
@@ -229,9 +232,6 @@ wss.on("connection", (socket, req) => {
   });
 
   socket.on("message", (data) => {
-    // console.log(`${SERVER_ID} received message ${data}`);
-    // pub.publish("testing", data as string);
-    // return;
     let msg;
     try {
       msg = JSON.parse(data as string);

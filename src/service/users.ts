@@ -1,7 +1,5 @@
 import { RedisClient } from "redis";
 
-const SIX_HOURS = 6 * 60 * 60 * 1000;
-
 export interface User {
   userId: string;
   username: string;
