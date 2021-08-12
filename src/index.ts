@@ -173,7 +173,7 @@ wss.on("connection", (socket, req) => {
       // remove user represented by the closed socket from party locally
       clients.get(socket.partyId)?.delete(socket.userId);
       // delete from redis
-      removeUser(pub, socket.partyId, socket.userId);
+      await removeUser(pub, socket.partyId, socket.userId);
 
       const remainingUsers = await getUsersInParty(pub, socket.partyId);
       console.log("after deleting, remainingUsers :>> ", remainingUsers);
@@ -300,9 +300,12 @@ wss.on("connection", (socket, req) => {
       }
       case "broadcastMessage":
       case "setUserMute":
-      case "timeUpdate":
       case "setAdminControls": {
         broadcast(socket, msg.type, msg.payload);
+        break;
+      }
+      case "healthCheck": {
+        // ignore, this is to bypass the 200 second idle connection timeout for AWS ALB
         break;
       }
       default: {
