@@ -14,15 +14,21 @@ block layout-content
               |  (Korean for &quot;together&quot;, &#xBAA8;&#xB450;&#xB2E4;) is a chrome extension that synchronizes video
               |                             playbacks on the web, allowing everyone to watch videos together.
             .notification.is-warning.is-light
-              p 
-              |The extension is currently being reviewed by the Chrome team. The links will be updated when ready. Until then, you can download the 
-              b .zip
-              |  file manually.
+                p 
+                | The extension is currently being reviewed by the Chrome team!
+                |  Until then, you can download the 
+                b .zip
+                |  file manually. To install, visit
+                b chrome://extensions 
+                | , click on 
+                b "Load Unpacked" 
+                |  and upload the unzipped folder.
+                | The link will be updated when it's ready.
             .buttons
               button.button.is-danger
                 span.icon
                   i.fab.fa-chrome
-                span
+                a(href='https://moduda-prod.s3.eu-west-2.amazonaws.com/moduda-v0.0.1-production.zip' style="color:white;text-decoration:none;")
                   | Download extension (.zip)
               button.button
                 span.icon
